@@ -44,7 +44,15 @@ export async function POST(req: Request) {
       (r) => r.email && r.company_name && r.email.includes("@")
     );
   } else if (manualRecipients) {
-    const parsed = JSON.parse(manualRecipients);
+    let parsed;
+    try {
+      parsed = JSON.parse(manualRecipients);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid recipients data format." },
+        { status: 400 }
+      );
+    }
     validRows = parsed.filter(
       (r: { email: string; company_name: string }) =>
         r.email && r.company_name && r.email.includes("@")

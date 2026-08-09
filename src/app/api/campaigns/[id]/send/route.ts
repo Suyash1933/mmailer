@@ -22,9 +22,6 @@ export async function POST(
   if (!campaign || campaign.userEmail !== session.user.email) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (campaign.status === "sending") {
-    return NextResponse.json({ error: "Already sending" }, { status: 400 });
-  }
 
   const smtpConfig = await prisma.smtpConfig.findUnique({
     where: { userEmail: session.user.email },
@@ -40,10 +37,15 @@ export async function POST(
     return NextResponse.json({ error: "No pending recipients" }, { status: 400 });
   }
 
-  await prisma.campaign.update({
-    where: { id },
+  // Atomic update: only transitions if not already "sending" — prevents race conditions
+  const result = await prisma.campaign.updateMany({
+    where: { id, userEmail: session.user.email, status: { not: "sending" } },
     data: { status: "sending" },
   });
+
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Already sending" }, { status: 400 });
+  }
 
   return NextResponse.json({ success: true, message: "Campaign queued for sending" });
 }

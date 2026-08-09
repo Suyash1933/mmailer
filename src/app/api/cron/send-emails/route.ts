@@ -8,11 +8,7 @@ import { ImapFlow } from "imapflow";
 
 export const maxDuration = 55; // Vercel function timeout (seconds)
 
-const BATCH_SIZE = 10; // emails per cron invocation
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const BATCH_SIZE = 1; // 1 email per invocation; frontend polls every 75s for spacing
 
 export async function GET(req: Request) {
   // Allow access via cron secret OR authenticated user session
@@ -104,9 +100,6 @@ export async function GET(req: Request) {
       }
     }
 
-    let sentCount = campaign.sentCount;
-    let failedCount = campaign.failedCount;
-
     for (const recipient of campaign.recipients) {
       const subject = campaign.template.subject.replace(
         /\{\{company_name\}\}/g,
@@ -126,17 +119,21 @@ export async function GET(req: Request) {
           attachments,
         });
 
-        sentCount++;
         totalSent++;
         await prisma.campaignEmail.update({
           where: { id: recipient.id },
           data: { status: "sent", sentAt: new Date() },
         });
 
+        // Atomically increment sentCount to avoid race conditions
+        await prisma.campaign.update({
+          where: { id: campaign.id },
+          data: { sentCount: { increment: 1 } },
+        });
+
         // Apply Gmail label via IMAP
         if (imapClient && gmailLabel && info.messageId) {
           try {
-            await sleep(500);
             const lock = await imapClient.getMailboxLock("[Gmail]/Sent Mail");
             try {
               const messageId = info.messageId.replace(/[<>]/g, "");
@@ -155,24 +152,18 @@ export async function GET(req: Request) {
           }
         }
       } catch (e: unknown) {
-        failedCount++;
         totalFailed++;
         const message = e instanceof Error ? e.message : "Unknown error";
         await prisma.campaignEmail.update({
           where: { id: recipient.id },
           data: { status: "failed", error: message },
         });
-      }
 
-      // Update campaign counts after each email
-      await prisma.campaign.update({
-        where: { id: campaign.id },
-        data: { sentCount, failedCount },
-      });
-
-      // 1 second delay between emails to avoid rate limits
-      if (campaign.recipients.indexOf(recipient) < campaign.recipients.length - 1) {
-        await sleep(1000);
+        // Atomically increment failedCount to avoid race conditions
+        await prisma.campaign.update({
+          where: { id: campaign.id },
+          data: { failedCount: { increment: 1 } },
+        });
       }
     }
 

@@ -43,7 +43,7 @@ export default function CampaignDetailPage() {
   }, [id]);
 
   const triggerCron = useCallback(() => {
-    fetch("/api/cron/send-emails").catch(() => {});
+    fetch("/api/cron/send-emails").catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -68,11 +68,11 @@ export default function CampaignDetailPage() {
           setCampaign((prev) =>
             prev
               ? {
-                  ...prev,
-                  status: data.status,
-                  sentCount: data.sentCount,
-                  failedCount: data.failedCount,
-                }
+                ...prev,
+                status: data.status,
+                sentCount: data.sentCount,
+                failedCount: data.failedCount,
+              }
               : prev
           );
           if (data.status !== "sending") {
@@ -80,7 +80,7 @@ export default function CampaignDetailPage() {
             fetchCampaign(); // Full refresh to get updated recipients
           }
         });
-    }, 10000);
+    }, 80000); // 80-second gap between emails to avoid spam filters
 
     return () => clearInterval(interval);
   }, [campaignStatus, id, fetchCampaign, triggerCron]);
@@ -127,8 +127,8 @@ export default function CampaignDetailPage() {
               {sending
                 ? "Starting..."
                 : pendingCount < campaign.totalEmails
-                ? `Resume (${pendingCount} remaining)`
-                : "Send Now"}
+                  ? `Resume (${pendingCount} remaining)`
+                  : "Send Now"}
             </Button>
           )}
       </div>
@@ -142,10 +142,10 @@ export default function CampaignDetailPage() {
                 campaign.status === "completed"
                   ? "default"
                   : campaign.status === "sending"
-                  ? "secondary"
-                  : campaign.status === "failed"
-                  ? "destructive"
-                  : "outline"
+                    ? "secondary"
+                    : campaign.status === "failed"
+                      ? "destructive"
+                      : "outline"
               }
             >
               {campaign.status}
@@ -199,8 +199,8 @@ export default function CampaignDetailPage() {
                           r.status === "sent"
                             ? "default"
                             : r.status === "failed"
-                            ? "destructive"
-                            : "outline"
+                              ? "destructive"
+                              : "outline"
                         }
                       >
                         {r.status}
