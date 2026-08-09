@@ -137,8 +137,16 @@ describe("POST /api/campaigns/[id]/send", () => {
       id: "1",
       userEmail: "test@test.com",
       status: "sending",
-      recipients: [],
+      recipients: [{ id: "r1", status: "pending" }],
     });
+    prismaMock.smtpConfig.findUnique.mockResolvedValue({
+      id: "s1",
+      userEmail: "test@test.com",
+      appPassword: "pass",
+      smtpHost: "smtp.gmail.com",
+      smtpPort: 587,
+    });
+    prismaMock.campaign.updateMany.mockResolvedValue({ count: 0 });
 
     const { POST } = await import("@/app/api/campaigns/[id]/send/route");
     const request = new Request("http://localhost/api/campaigns/1/send", { method: "POST" });
@@ -164,7 +172,7 @@ describe("POST /api/campaigns/[id]/send", () => {
       smtpHost: "smtp.gmail.com",
       smtpPort: 587,
     });
-    prismaMock.campaign.update.mockResolvedValue({ id: "1", status: "sending" });
+    prismaMock.campaign.updateMany.mockResolvedValue({ count: 1 });
 
     const { POST } = await import("@/app/api/campaigns/[id]/send/route");
     const request = new Request("http://localhost/api/campaigns/1/send", { method: "POST" });
@@ -173,8 +181,8 @@ describe("POST /api/campaigns/[id]/send", () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
-    expect(prismaMock.campaign.update).toHaveBeenCalledWith({
-      where: { id: "1" },
+    expect(prismaMock.campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: "1", userEmail: "test@test.com", status: { not: "sending" } },
       data: { status: "sending" },
     });
   });
