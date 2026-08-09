@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SmtpConfig {
+  id          String   @id @default(cuid())
+  userEmail   String   @unique
+  appPassword String
+  smtpHost    String   @default("smtp.gmail.com")
+  smtpPort    Int      @default(587)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Template {
+  id        String     @id @default(cuid())
+  userEmail String
+  name      String
+  subject   String
+  body      String
+  pdfPath   String?
+  label     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  campaigns Campaign[]
+
+  @@index([userEmail])
+}
+
+model Campaign {
+  id          String          @id @default(cuid())
+  userEmail   String
+  name        String
+  templateId  String
+  template    Template        @relation(fields: [templateId], references: [id])
+  scheduledAt DateTime?
+  status      String          @default("draft")
+  totalEmails Int             @default(0)
+  sentCount   Int             @default(0)
+  failedCount Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  recipients  CampaignEmail[]
+
+  @@index([userEmail, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CampaignEmail {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email       String
+  companyName String
+  status      String    @default("pending")
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([campaignId, status])
+}
