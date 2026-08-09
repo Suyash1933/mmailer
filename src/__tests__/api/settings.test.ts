@@ -22,7 +22,7 @@ describe("GET /api/settings/smtp", () => {
 
   it("returns null when no config exists", async () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
-    prismaMock.smtpConfig.findFirst.mockResolvedValue(null);
+    prismaMock.smtpConfig.findUnique.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/settings/smtp/route");
     const response = await GET();
@@ -34,9 +34,9 @@ describe("GET /api/settings/smtp", () => {
 
   it("returns config without password", async () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
-    prismaMock.smtpConfig.findFirst.mockResolvedValue({
+    prismaMock.smtpConfig.findUnique.mockResolvedValue({
       id: "1",
-      email: "user@gmail.com",
+      userEmail: "test@test.com",
       appPassword: "secret",
       smtpHost: "smtp.gmail.com",
       smtpPort: 587,
@@ -47,7 +47,7 @@ describe("GET /api/settings/smtp", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.email).toBe("user@gmail.com");
+    expect(data.email).toBe("test@test.com");
     expect(data.hasPassword).toBe(true);
     expect(data.appPassword).toBeUndefined();
   });

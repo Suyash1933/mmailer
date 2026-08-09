@@ -26,6 +26,7 @@ describe("GET /api/campaigns", () => {
     const mockCampaigns = [
       {
         id: "1",
+        userEmail: "test@test.com",
         name: "Campaign 1",
         status: "draft",
         totalEmails: 10,
@@ -69,6 +70,7 @@ describe("GET /api/campaigns/[id]", () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
     const mockCampaign = {
       id: "1",
+      userEmail: "test@test.com",
       name: "Test Campaign",
       status: "draft",
       totalEmails: 2,
@@ -100,6 +102,7 @@ describe("DELETE /api/campaigns/[id]", () => {
 
   it("deletes campaign when authenticated", async () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
+    prismaMock.campaign.findUnique.mockResolvedValue({ id: "1", userEmail: "test@test.com" });
     prismaMock.campaign.delete.mockResolvedValue({ id: "1" });
 
     const { DELETE } = await import("@/app/api/campaigns/[id]/route");
@@ -132,6 +135,7 @@ describe("POST /api/campaigns/[id]/send", () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
     prismaMock.campaign.findUnique.mockResolvedValue({
       id: "1",
+      userEmail: "test@test.com",
       status: "sending",
       recipients: [],
     });
@@ -149,12 +153,13 @@ describe("POST /api/campaigns/[id]/send", () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
     prismaMock.campaign.findUnique.mockResolvedValue({
       id: "1",
+      userEmail: "test@test.com",
       status: "draft",
       recipients: [{ id: "r1", status: "pending" }],
     });
-    prismaMock.smtpConfig.findFirst.mockResolvedValue({
+    prismaMock.smtpConfig.findUnique.mockResolvedValue({
       id: "s1",
-      email: "test@gmail.com",
+      userEmail: "test@test.com",
       appPassword: "pass",
       smtpHost: "smtp.gmail.com",
       smtpPort: 587,
@@ -183,6 +188,7 @@ describe("GET /api/campaigns/[id]/status", () => {
   it("returns lightweight status data", async () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
     prismaMock.campaign.findUnique.mockResolvedValue({
+      userEmail: "test@test.com",
       status: "sending",
       sentCount: 5,
       failedCount: 1,

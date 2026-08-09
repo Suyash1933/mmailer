@@ -24,8 +24,10 @@ export const prismaMock = {
   },
   smtpConfig: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    upsert: vi.fn(),
   },
 };
 

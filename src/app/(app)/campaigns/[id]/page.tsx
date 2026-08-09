@@ -42,16 +42,26 @@ export default function CampaignDetailPage() {
       .then(setCampaign);
   }, [id]);
 
+  const triggerCron = useCallback(() => {
+    fetch("/api/cron/send-emails").catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchCampaign();
   }, [fetchCampaign]);
 
-  // Poll for status updates while sending
+  // Poll for status updates while sending + trigger cron to process next batch
   const campaignStatus = campaign?.status;
   useEffect(() => {
     if (campaignStatus !== "sending") return;
 
+    // Trigger cron immediately when entering sending state
+    triggerCron();
+
     const interval = setInterval(() => {
+      // Trigger cron to process next batch of emails
+      triggerCron();
+      // Check updated status
       fetch(`/api/campaigns/${id}/status`)
         .then((r) => r.json())
         .then((data) => {
@@ -73,7 +83,7 @@ export default function CampaignDetailPage() {
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [campaignStatus, id, fetchCampaign]);
+  }, [campaignStatus, id, fetchCampaign, triggerCron]);
 
   const handleSend = async () => {
     setSending(true);
@@ -83,6 +93,8 @@ export default function CampaignDetailPage() {
     if (res.ok) {
       toast.success("Sending started!");
       fetchCampaign();
+      // Trigger cron immediately to start processing
+      triggerCron();
     } else {
       toast.error(data.error || "Failed to start sending");
     }

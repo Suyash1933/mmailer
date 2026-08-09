@@ -61,6 +61,7 @@ describe("GET /api/templates/[id]", () => {
     mockGetServerSession.mockResolvedValue({ user: { email: "test@test.com" } });
     const mockTemplate = {
       id: "1",
+      userEmail: "test@test.com",
       name: "Test",
       subject: "Subject",
       body: "<p>Body</p>",

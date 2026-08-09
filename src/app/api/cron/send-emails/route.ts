@@ -6,7 +6,7 @@ import { ImapFlow } from "imapflow";
 
 export const maxDuration = 55; // Vercel function timeout (seconds)
 
-const BATCH_SIZE = 3; // emails per cron invocation
+const BATCH_SIZE = 10; // emails per cron invocation
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
         // Apply Gmail label via IMAP
         if (imapClient && gmailLabel && info.messageId) {
           try {
-            await sleep(2000);
+            await sleep(500);
             const lock = await imapClient.getMailboxLock("[Gmail]/Sent Mail");
             try {
               const messageId = info.messageId.replace(/[<>]/g, "");
@@ -162,9 +162,9 @@ export async function GET(req: Request) {
         data: { sentCount, failedCount },
       });
 
-      // 5 second delay between emails
+      // 1 second delay between emails to avoid rate limits
       if (campaign.recipients.indexOf(recipient) < campaign.recipients.length - 1) {
-        await sleep(5000);
+        await sleep(1000);
       }
     }
 
