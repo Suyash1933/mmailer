@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import nodemailer from "nodemailer";
 import path from "path";
 import { ImapFlow } from "imapflow";
@@ -13,11 +15,17 @@ function sleep(ms: number) {
 }
 
 export async function GET(req: Request) {
-  // Verify cron secret — Vercel sends this automatically for cron jobs
+  // Allow access via cron secret OR authenticated user session
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const hasValidCronSecret = !cronSecret || authHeader === `Bearer ${cronSecret}`;
+
+  if (!hasValidCronSecret) {
+    // No valid cron secret — check for user session instead
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   // Find all campaigns that are currently sending
