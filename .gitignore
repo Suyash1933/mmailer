@@ -20,6 +20,11 @@
 .DS_Store
 *.pem
 
+# AI tool configs
+.agents/
+.claude/
+.windsurf/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
