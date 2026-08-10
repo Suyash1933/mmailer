@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+
+const POLL_INTERVAL_MS = 30_000; // trigger send + refresh every 30s while sending
 
 interface Campaign {
   id: string;
@@ -21,18 +23,54 @@ interface Campaign {
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [polling, setPolling] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchCampaigns = () => {
-    fetch("/api/campaigns")
-      .then((r) => r.json())
-      .then((data) => {
-        setCampaigns(data);
-        setLoading(false);
-      });
+  const fetchCampaigns = async () => {
+    const r = await fetch("/api/campaigns");
+    const data = await r.json();
+    setCampaigns(data);
+    setLoading(false);
+    return data as Campaign[];
   };
 
+  const triggerSend = async () => {
+    await fetch("/api/cron/send-emails");
+  };
+
+  const tick = async () => {
+    await triggerSend();
+    const data = await fetchCampaigns();
+    const stillSending = data.some((c) => c.status === "sending");
+    if (!stillSending) {
+      stopPolling();
+    }
+  };
+
+  const startPolling = () => {
+    if (intervalRef.current) return;
+    setPolling(true);
+    tick(); // fire immediately
+    intervalRef.current = setInterval(tick, POLL_INTERVAL_MS);
+  };
+
+  const stopPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setPolling(false);
+  };
+
+  // Start polling automatically if any campaign is sending on mount
   useEffect(() => {
-    fetchCampaigns();
+    fetchCampaigns().then((data) => {
+      if (data.some((c) => c.status === "sending")) {
+        startPolling();
+      }
+    });
+    return () => stopPolling();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDelete = async (id: string) => {
@@ -59,9 +97,16 @@ export default function CampaignsPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Campaigns</h1>
-        <Link href="/campaigns/new">
-          <Button>New Campaign</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          {polling && (
+            <span className="text-xs text-green-600 animate-pulse">
+              ● Sending in progress…
+            </span>
+          )}
+          <Link href="/campaigns/new">
+            <Button>New Campaign</Button>
+          </Link>
+        </div>
       </div>
 
       {loading ? (
