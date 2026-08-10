@@ -25,7 +25,7 @@ model Template {
   body      String
   pdfPath   String?
   pdfData   String?
-  label     String?
+  // label  String?   // Gmail label — disabled, re-enable when IMAP feature is implemented
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   campaigns Campaign[]

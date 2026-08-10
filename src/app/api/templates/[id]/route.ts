@@ -36,7 +36,6 @@ export async function PUT(
   const name = formData.get("name") as string;
   const subject = formData.get("subject") as string;
   const body = formData.get("body") as string;
-  const label = formData.get("label") as string | null;
   const pdf = formData.get("pdf") as File | null;
 
   let pdfPath = existing.pdfPath;
@@ -50,7 +49,7 @@ export async function PUT(
 
   const template = await prisma.template.update({
     where: { id },
-    data: { name, subject, body, pdfPath, pdfData, label: label || null },
+    data: { name, subject, body, pdfPath, pdfData },
   });
 
   return NextResponse.json(template);

@@ -72,7 +72,7 @@ describe("GET /api/cron/send-emails", () => {
         sentCount: 5,
         failedCount: 0,
         recipients: [],
-        template: { subject: "Test", body: "<p>Hi</p>", pdfPath: null, label: null },
+        template: { subject: "Test", body: "<p>Hi</p>", pdfPath: null },
       },
     ]);
     prismaMock.campaign.update.mockResolvedValue({});

@@ -66,7 +66,6 @@ describe("GET /api/templates/[id]", () => {
       subject: "Subject",
       body: "<p>Body</p>",
       pdfPath: null,
-      label: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -15,7 +15,6 @@ export default function NewTemplatePage() {
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [label, setLabel] = useState("");
   const [pdf, setPdf] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<"richtext" | "html">("html");
@@ -28,7 +27,6 @@ export default function NewTemplatePage() {
     formData.append("name", name);
     formData.append("subject", subject);
     formData.append("body", body);
-    if (label) formData.append("label", label);
     if (pdf) formData.append("pdf", pdf);
 
     const res = await fetch("/api/templates", {
