@@ -4,12 +4,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import nodemailer from "nodemailer";
 import path from "path";
-import { ImapFlow } from "imapflow";
 
 export const maxDuration = 55; // Vercel function timeout (seconds)
 
 const BATCH_SIZE = 1;          // 1 email per invocation
-const EMAIL_GAP_SECONDS = 45;  // minimum gap between emails (enforced server-side)
+const EMAIL_GAP_SECONDS = 30;  // min gap after sentAt write (SMTP overhead means ~45s wall-clock between emails)
 
 export async function GET(req: Request) {
   // Allow access via cron secret (header or query param) OR authenticated user session
@@ -67,8 +66,7 @@ export async function GET(req: Request) {
       continue;
     }
 
-    // Enforce 45-second gap between emails — safe even if cron-job.org
-    // calls more frequently than once per minute (two staggered jobs, etc.)
+    // Enforce gap between emails — safe even if cron is called more frequently
     const lastSent = await prisma.campaignEmail.findFirst({
       where: { campaignId: campaign.id, status: "sent" },
       orderBy: { sentAt: "desc" },
@@ -108,29 +106,8 @@ export async function GET(req: Request) {
       attachments = [{ filename, content: buffer }];
     }
 
-    // Connect IMAP if template has a label
-    let imapClient: ImapFlow | null = null;
-    const gmailLabel = campaign.template.label;
-
-    if (gmailLabel) {
-      try {
-        imapClient = new ImapFlow({
-          host: "imap.gmail.com",
-          port: 993,
-          secure: true,
-          auth: { user: smtpConfig.userEmail, pass: smtpConfig.appPassword },
-          logger: false,
-        });
-        await imapClient.connect();
-        try {
-          await imapClient.mailboxCreate(gmailLabel);
-        } catch {
-          // Label already exists
-        }
-      } catch {
-        imapClient = null;
-      }
-    }
+    // TODO: Gmail label via IMAP — disabled for now, re-enable in future
+    // const gmailLabel = campaign.template.label;
 
     for (const recipient of campaign.recipients) {
       const subject = campaign.template.subject.replace(
@@ -143,7 +120,7 @@ export async function GET(req: Request) {
       );
 
       try {
-        const info = await transporter.sendMail({
+        await transporter.sendMail({
           from: smtpConfig.userEmail,
           to: recipient.email,
           subject,
@@ -161,26 +138,7 @@ export async function GET(req: Request) {
           data: { sentCount: { increment: 1 } },
         });
 
-        // Apply Gmail label via IMAP
-        if (imapClient && gmailLabel && info.messageId) {
-          try {
-            const lock = await imapClient.getMailboxLock("[Gmail]/Sent Mail");
-            try {
-              const messageId = info.messageId.replace(/[<>]/g, "");
-              const result = await imapClient.search(
-                { header: { "Message-ID": messageId } },
-                { uid: true }
-              );
-              if (result && Array.isArray(result) && result.length > 0) {
-                await imapClient.messageCopy(result as number[], gmailLabel, { uid: true });
-              }
-            } finally {
-              lock.release();
-            }
-          } catch {
-            // Labeling failed — email was still sent
-          }
-        }
+        // TODO: Apply Gmail label via IMAP — disabled for now
       } catch (e: unknown) {
         totalFailed++;
         const message = e instanceof Error ? e.message : "Unknown error";
@@ -193,10 +151,6 @@ export async function GET(req: Request) {
           data: { failedCount: { increment: 1 } },
         });
       }
-    }
-
-    if (imapClient) {
-      try { await imapClient.logout(); } catch { /* ignore */ }
     }
 
     const remaining = await prisma.campaignEmail.count({

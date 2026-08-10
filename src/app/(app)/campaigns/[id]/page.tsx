@@ -86,7 +86,7 @@ export default function CampaignDetailPage() {
             fetchCampaign();
           }
         });
-    }, 45000); // poll every 45s to match server-side email gap
+    }, 35000); // poll every 35s — gives server-side 30s gap check room to pass
 
     return () => clearInterval(interval);
   }, [campaignStatus, manualMode, id, fetchCampaign, triggerCron]);

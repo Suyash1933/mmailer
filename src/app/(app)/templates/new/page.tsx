@@ -138,18 +138,7 @@ export default function NewTemplatePage() {
                   </>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="label">Gmail Label (optional)</Label>
-                <Input
-                  id="label"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="e.g., Job Applications"
-                />
-                <p className="text-xs text-gray-500">
-                  Sent emails will be automatically labeled in Gmail.
-                </p>
-              </div>
+              {/* TODO: Gmail Label — disabled for now, re-enable in future */}
               <div className="space-y-2">
                 <Label htmlFor="pdf">PDF Attachment (optional)</Label>
                 <Input
