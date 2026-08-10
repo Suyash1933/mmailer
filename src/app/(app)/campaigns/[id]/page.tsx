@@ -35,6 +35,10 @@ export default function CampaignDetailPage() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [sending, setSending] = useState(false);
+  // manualMode = true → browser drives sending (keep tab open)
+  // manualMode = false → Vercel cron drives sending (background)
+  const [manualMode, setManualMode] = useState(false);
+  const [lastTriggered, setLastTriggered] = useState<Date | null>(null);
 
   const fetchCampaign = useCallback(() => {
     fetch(`/api/campaigns/${id}`)
@@ -44,24 +48,26 @@ export default function CampaignDetailPage() {
 
   const triggerCron = useCallback(() => {
     fetch("/api/cron/send-emails").catch(() => { });
+    setLastTriggered(new Date());
   }, []);
 
   useEffect(() => {
     fetchCampaign();
   }, [fetchCampaign]);
 
-  // Poll for status updates while sending + trigger cron to process next batch
+  // Poll + trigger cron while campaign is sending
   const campaignStatus = campaign?.status;
   useEffect(() => {
     if (campaignStatus !== "sending") return;
 
-    // Trigger cron immediately when entering sending state
+    // Trigger immediately on entering sending state
     triggerCron();
 
+    // Manual mode: poll every 30s (browser-driven, fast)
+    // Background mode: poll every 60s (just to update the UI — cron does the work)
     const interval = setInterval(() => {
-      // Trigger cron to process next batch of emails
-      triggerCron();
-      // Check updated status
+      if (manualMode) triggerCron(); // only browser-trigger in manual mode
+
       fetch(`/api/campaigns/${id}/status`)
         .then((r) => r.json())
         .then((data) => {
@@ -77,23 +83,27 @@ export default function CampaignDetailPage() {
           );
           if (data.status !== "sending") {
             clearInterval(interval);
-            fetchCampaign(); // Full refresh to get updated recipients
+            fetchCampaign();
           }
         });
-    }, 80000); // 80-second gap between emails to avoid spam filters
+    }, 45000); // poll every 45s to match server-side email gap
 
     return () => clearInterval(interval);
-  }, [campaignStatus, id, fetchCampaign, triggerCron]);
+  }, [campaignStatus, manualMode, id, fetchCampaign, triggerCron]);
 
-  const handleSend = async () => {
+  const handleSend = async (manual: boolean) => {
     setSending(true);
     const res = await fetch(`/api/campaigns/${id}/send`, { method: "POST" });
     const data = await res.json();
 
     if (res.ok) {
-      toast.success("Sending started!");
+      setManualMode(manual);
+      toast.success(
+        manual
+          ? "Sending started! Keep this tab open."
+          : "Sending started in background!"
+      );
       fetchCampaign();
-      // Trigger cron immediately to start processing
       triggerCron();
     } else {
       toast.error(data.error || "Failed to start sending");
@@ -111,6 +121,11 @@ export default function CampaignDetailPage() {
   const pendingCount =
     campaign.totalEmails - campaign.sentCount - campaign.failedCount;
 
+  const isResume = pendingCount < campaign.totalEmails;
+  const canSend =
+    (campaign.status === "draft" || pendingCount > 0) &&
+    campaign.status !== "sending";
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -121,17 +136,50 @@ export default function CampaignDetailPage() {
             {new Date(campaign.createdAt).toLocaleString()}
           </p>
         </div>
-        {(campaign.status === "draft" || pendingCount > 0) &&
-          campaign.status !== "sending" && (
-            <Button onClick={handleSend} disabled={sending}>
-              {sending
-                ? "Starting..."
-                : pendingCount < campaign.totalEmails
-                  ? `Resume (${pendingCount} remaining)`
-                  : "Send Now"}
+
+        {canSend && (
+          <div className="flex gap-2">
+            {/* Background send — relies on Vercel cron (Pro plan) */}
+            <Button
+              variant="outline"
+              onClick={() => handleSend(false)}
+              disabled={sending}
+            >
+              {sending ? "Starting..." : isResume ? `Resume in Background` : "Send in Background"}
             </Button>
-          )}
+
+            {/* Manual send — browser drives it, keep tab open */}
+            <Button
+              onClick={() => handleSend(true)}
+              disabled={sending}
+            >
+              {sending ? "Starting..." : isResume ? `Resume (${pendingCount} remaining)` : "Send Now (Keep Tab Open)"}
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Manual mode banner */}
+      {campaign.status === "sending" && manualMode && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>
+            <strong>Manual mode active</strong> — keep this tab open to continue sending.
+            Triggering every 45 seconds.
+          </span>
+          {lastTriggered && (
+            <span className="text-xs text-amber-600">
+              Last triggered: {lastTriggered.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Background mode info while sending */}
+      {campaign.status === "sending" && !manualMode && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <strong>Background mode</strong> — you can close this tab. Vercel cron will continue sending.
+        </div>
+      )}
 
       {/* Progress */}
       <Card className="mb-6">

@@ -24,6 +24,7 @@ model Template {
   subject   String
   body      String
   pdfPath   String?
+  pdfData   String?
   label     String?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt

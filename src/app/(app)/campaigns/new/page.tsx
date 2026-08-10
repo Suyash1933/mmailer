@@ -56,7 +56,7 @@ export default function NewCampaignPage() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       const data = evt.target?.result;
-      const workbook = XLSX.read(data, { type: "binary" });
+      const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Row>(sheet);
       const valid = rows.filter(
@@ -65,7 +65,7 @@ export default function NewCampaignPage() {
       setTotalRows(valid.length);
       setPreview(valid.slice(0, 5));
     };
-    reader.readAsBinaryString(f);
+    reader.readAsArrayBuffer(f);
   };
 
   const addManualRow = () => {
@@ -205,7 +205,7 @@ export default function NewCampaignPage() {
                         : "bg-background text-foreground border-input hover:bg-accent"
                     }`}
                   >
-                    Upload Excel
+                    Upload Excel / CSV
                   </button>
                   <button
                     type="button"
@@ -225,7 +225,7 @@ export default function NewCampaignPage() {
               {inputMode === "excel" && (
                 <div className="space-y-2">
                   <p className="text-xs text-gray-500">
-                    Column 1: <code>email</code> | Column 2:{" "}
+                    Excel (.xlsx) or CSV — Column 1: <code>email</code> | Column 2:{" "}
                     <code>company_name</code>
                   </p>
                   <Input
@@ -330,7 +330,7 @@ export default function NewCampaignPage() {
         <Card>
           <CardHeader>
             <CardTitle>
-              {inputMode === "excel" ? "Excel Preview" : "Recipients Preview"}
+              {inputMode === "excel" ? "File Preview" : "Recipients Preview"}
             </CardTitle>
             {inputMode === "excel" && totalRows > 0 && (
               <p className="text-sm text-gray-500">
@@ -346,7 +346,7 @@ export default function NewCampaignPage() {
           <CardContent>
             {inputMode === "excel" && preview.length === 0 && (
               <p className="text-gray-400 text-sm">
-                Upload an Excel file to see a preview
+                Upload an Excel or CSV file to see a preview
               </p>
             )}
 

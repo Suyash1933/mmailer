@@ -8,21 +8,35 @@ import { ImapFlow } from "imapflow";
 
 export const maxDuration = 55; // Vercel function timeout (seconds)
 
-const BATCH_SIZE = 1; // 1 email per invocation; frontend polls every 75s for spacing
+const BATCH_SIZE = 1;          // 1 email per invocation
+const EMAIL_GAP_SECONDS = 45;  // minimum gap between emails (enforced server-side)
 
 export async function GET(req: Request) {
-  // Allow access via cron secret OR authenticated user session
+  // Allow access via cron secret (header or query param) OR authenticated user session
   const authHeader = req.headers.get("authorization");
+  const url = new URL(req.url);
+  const querySecret = url.searchParams.get("secret");
   const cronSecret = process.env.CRON_SECRET;
-  const hasValidCronSecret = !cronSecret || authHeader === `Bearer ${cronSecret}`;
+  const hasValidCronSecret =
+    !cronSecret ||
+    authHeader === `Bearer ${cronSecret}` ||
+    querySecret === cronSecret;
 
   if (!hasValidCronSecret) {
-    // No valid cron secret — check for user session instead
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
+
+  // Auto-start any scheduled campaigns whose time has arrived
+  await prisma.campaign.updateMany({
+    where: {
+      status: "draft",
+      scheduledAt: { lte: new Date() },
+    },
+    data: { status: "sending" },
+  });
 
   // Find all campaigns that are currently sending
   const campaigns = await prisma.campaign.findMany({
@@ -42,10 +56,10 @@ export async function GET(req: Request) {
 
   let totalSent = 0;
   let totalFailed = 0;
+  let totalSkipped = 0;
 
   for (const campaign of campaigns) {
     if (campaign.recipients.length === 0) {
-      // No more pending — mark campaign as completed
       await prisma.campaign.update({
         where: { id: campaign.id },
         data: { status: "completed" },
@@ -53,12 +67,27 @@ export async function GET(req: Request) {
       continue;
     }
 
+    // Enforce 45-second gap between emails — safe even if cron-job.org
+    // calls more frequently than once per minute (two staggered jobs, etc.)
+    const lastSent = await prisma.campaignEmail.findFirst({
+      where: { campaignId: campaign.id, status: "sent" },
+      orderBy: { sentAt: "desc" },
+      select: { sentAt: true },
+    });
+
+    if (lastSent?.sentAt) {
+      const elapsed = (Date.now() - lastSent.sentAt.getTime()) / 1000;
+      if (elapsed < EMAIL_GAP_SECONDS) {
+        totalSkipped++;
+        continue; // Too soon — wait for next invocation
+      }
+    }
+
     // Get SMTP config for this campaign's owner
     const smtpConfig = await prisma.smtpConfig.findUnique({
       where: { userEmail: campaign.userEmail },
     });
     if (!smtpConfig || !smtpConfig.appPassword) {
-      // Skip this campaign — owner hasn't configured SMTP
       continue;
     }
 
@@ -69,11 +98,14 @@ export async function GET(req: Request) {
       auth: { user: smtpConfig.userEmail, pass: smtpConfig.appPassword },
     });
 
-    // Prepare PDF attachment if exists
+    // Build PDF attachment from DB (base64) — works in serverless, no filesystem
     let attachments: nodemailer.SendMailOptions["attachments"] = [];
-    if (campaign.template.pdfPath) {
-      const fullPath = path.join(process.cwd(), campaign.template.pdfPath);
-      attachments = [{ filename: path.basename(fullPath), path: fullPath }];
+    if (campaign.template.pdfData) {
+      const buffer = Buffer.from(campaign.template.pdfData, "base64");
+      const filename = campaign.template.pdfPath
+        ? path.basename(campaign.template.pdfPath)
+        : "attachment.pdf";
+      attachments = [{ filename, content: buffer }];
     }
 
     // Connect IMAP if template has a label
@@ -124,8 +156,6 @@ export async function GET(req: Request) {
           where: { id: recipient.id },
           data: { status: "sent", sentAt: new Date() },
         });
-
-        // Atomically increment sentCount to avoid race conditions
         await prisma.campaign.update({
           where: { id: campaign.id },
           data: { sentCount: { increment: 1 } },
@@ -158,8 +188,6 @@ export async function GET(req: Request) {
           where: { id: recipient.id },
           data: { status: "failed", error: message },
         });
-
-        // Atomically increment failedCount to avoid race conditions
         await prisma.campaign.update({
           where: { id: campaign.id },
           data: { failedCount: { increment: 1 } },
@@ -167,16 +195,10 @@ export async function GET(req: Request) {
       }
     }
 
-    // Close IMAP
     if (imapClient) {
-      try {
-        await imapClient.logout();
-      } catch {
-        // Ignore
-      }
+      try { await imapClient.logout(); } catch { /* ignore */ }
     }
 
-    // Check if campaign is fully done
     const remaining = await prisma.campaignEmail.count({
       where: { campaignId: campaign.id, status: "pending" },
     });
@@ -192,5 +214,6 @@ export async function GET(req: Request) {
     processed: true,
     sent: totalSent,
     failed: totalFailed,
+    skipped: totalSkipped,
   });
 }
