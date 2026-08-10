@@ -50,6 +50,7 @@ describe("GET /api/cron/send-emails", () => {
     prismaMock.campaign.findMany.mockResolvedValue([
       { id: "1", userEmail: "test@test.com", status: "sending", sentCount: 0, failedCount: 0, recipients: [{ id: "r1" }], template: {} },
     ]);
+    prismaMock.campaignEmail.findFirst.mockResolvedValue(null);
     prismaMock.smtpConfig.findUnique.mockResolvedValue(null);
 
     const { GET } = await import("@/app/api/cron/send-emails/route");

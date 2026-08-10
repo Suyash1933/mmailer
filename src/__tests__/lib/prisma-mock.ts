@@ -12,6 +12,7 @@ export const prismaMock = {
     aggregate: vi.fn(),
   },
   campaignEmail: {
+    findFirst: vi.fn(),
     createMany: vi.fn(),
     update: vi.fn(),
     count: vi.fn(),
