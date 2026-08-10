@@ -91,18 +91,14 @@ export default function CampaignDetailPage() {
     return () => clearInterval(interval);
   }, [campaignStatus, manualMode, id, fetchCampaign, triggerCron]);
 
-  const handleSend = async (manual: boolean) => {
+  const handleSend = async () => {
     setSending(true);
     const res = await fetch(`/api/campaigns/${id}/send`, { method: "POST" });
     const data = await res.json();
 
     if (res.ok) {
-      setManualMode(manual);
-      toast.success(
-        manual
-          ? "Sending started! Keep this tab open."
-          : "Sending started in background!"
-      );
+      setManualMode(true);
+      toast.success("Sending started! Keep this tab open.");
       fetchCampaign();
       triggerCron();
     } else {
@@ -138,24 +134,13 @@ export default function CampaignDetailPage() {
         </div>
 
         {canSend && (
-          <div className="flex gap-2">
-            {/* Background send — relies on Vercel cron (Pro plan) */}
-            <Button
-              variant="outline"
-              onClick={() => handleSend(false)}
-              disabled={sending}
-            >
-              {sending ? "Starting..." : isResume ? `Resume in Background` : "Send in Background"}
-            </Button>
-
-            {/* Manual send — browser drives it, keep tab open */}
-            <Button
-              onClick={() => handleSend(true)}
-              disabled={sending}
-            >
-              {sending ? "Starting..." : isResume ? `Resume (${pendingCount} remaining)` : "Send Now (Keep Tab Open)"}
-            </Button>
-          </div>
+          <Button onClick={handleSend} disabled={sending}>
+            {sending
+              ? "Starting..."
+              : isResume
+                ? `Resume (${pendingCount} remaining)`
+                : "Send Now"}
+          </Button>
         )}
       </div>
 
@@ -171,13 +156,6 @@ export default function CampaignDetailPage() {
               Last triggered: {lastTriggered.toLocaleTimeString()}
             </span>
           )}
-        </div>
-      )}
-
-      {/* Background mode info while sending */}
-      {campaign.status === "sending" && !manualMode && (
-        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <strong>Background mode</strong> — you can close this tab. Vercel cron will continue sending.
         </div>
       )}
 

@@ -62,7 +62,7 @@ describe("CampaignDetailPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Test Campaign")).toBeInTheDocument();
-      expect(screen.getByText("Send Now (Keep Tab Open)")).toBeInTheDocument();
+      expect(screen.getByText("Send Now")).toBeInTheDocument();
     });
   });
 
