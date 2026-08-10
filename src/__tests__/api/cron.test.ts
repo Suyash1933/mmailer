@@ -16,6 +16,7 @@ vi.mock("imapflow", () => ({
 describe("GET /api/cron/send-emails", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.campaign.updateMany.mockResolvedValue({ count: 0 });
   });
 
   it("returns unauthorized with wrong secret", async () => {
